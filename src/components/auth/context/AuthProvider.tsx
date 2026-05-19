@@ -94,7 +94,9 @@ type GoogleWindow = {
 
 const GOOGLE_SCRIPT_ID = "google-identity-services";
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
-const GOOGLE_TASKS_SCOPE = "https://www.googleapis.com/auth/tasks.readonly";
+// FIXED: Added profile/email scopes so fetchGoogleProfile doesn't throw a 403 error
+const GOOGLE_SCOPES =
+  "openid profile email https://www.googleapis.com/auth/tasks.readonly";
 
 const defaultTasksState: GoogleTasksState = {
   taskLists: [],
@@ -277,21 +279,29 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
     }));
   }, [clientId]);
 
+  // FIXED: Extracted token validation logic safely out of the callback dependency loop
+  // using a helper function or direct variable assignment inside a non-closure pattern.
   const refreshGoogleTasks = useCallback(async () => {
-    const accessToken = state.accessToken;
+    let currentToken: string | null = null;
 
-    if (!accessToken) {
+    // Safely pull the absolute latest token from the current state
+    setState((current) => {
+      currentToken = current.accessToken;
+      if (!currentToken) return current;
+      return {
+        ...current,
+        tasksLoading: true,
+        tasksError: null,
+      };
+    });
+
+    // Handle case where user is not logged in yet
+    if (!currentToken) {
       throw new Error("Missing Google access token");
     }
 
-    setState((current) => ({
-      ...current,
-      tasksLoading: true,
-      tasksError: null,
-    }));
-
     try {
-      const { taskLists, tasksByList } = await fetchGoogleTasks(accessToken);
+      const { taskLists, tasksByList } = await fetchGoogleTasks(currentToken);
 
       setState((current) => ({
         ...current,
@@ -310,7 +320,7 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
       }));
       throw error;
     }
-  }, [state.accessToken]);
+  }, []); // Stable identity across renders!
 
   useEffect(() => {
     initializeGoogleAuth().catch((error: Error) => {
@@ -346,7 +356,7 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
     return new Promise<void>((resolve, reject) => {
       const tokenClient = oauth2.initTokenClient({
         client_id: clientId,
-        scope: GOOGLE_TASKS_SCOPE,
+        scope: GOOGLE_SCOPES, // FIXED: Using combined profile + tasks scopes
         callback: async (response: GoogleTokenResponse) => {
           if (response.error) {
             const errorMessage = getGoogleAuthSetupHint(
@@ -414,29 +424,33 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
   }, [clientId, initializeGoogleAuth]);
 
   const signOut = useCallback(async () => {
-    const accessToken = state.accessToken;
+    let accessToken: string | null = null;
+
+    setState((current) => {
+      accessToken = current.accessToken;
+      return {
+        ...current,
+        authenticated: false,
+        user: null,
+        accessToken: null,
+        error: null,
+        taskLists: [],
+        tasksByList: {},
+        tasksLoading: false,
+        tasksError: null,
+      };
+    });
+
     const google = window.google as GoogleWindow | undefined;
 
     if (accessToken && google?.accounts?.oauth2?.revoke) {
       await new Promise<void>((resolve) => {
-        google.accounts.oauth2?.revoke(accessToken, () => resolve());
+        google.accounts.oauth2?.revoke(accessToken!, () => resolve());
       });
     }
 
     google?.accounts?.id?.disableAutoSelect();
-
-    setState((current) => ({
-      ...current,
-      authenticated: false,
-      user: null,
-      accessToken: null,
-      error: null,
-      taskLists: [],
-      tasksByList: {},
-      tasksLoading: false,
-      tasksError: null,
-    }));
-  }, [state.accessToken]);
+  }, []); // FIXED: Removed state.accessToken dependency to ensure absolute consistency
 
   const value = useMemo(
     () => ({

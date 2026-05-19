@@ -26,16 +26,16 @@ body {
 }
 
 button {
-  border-radius: 999px;
-  border: 1px solid transparent;
+  /* border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 0.6rem 1rem;
   font: inherit;
-  cursor: pointer;
-  transition:
+  cursor: pointer; */
+  /* transition:
     transform 140ms ease,
     border-color 140ms ease,
     background-color 140ms ease,
-    opacity 140ms ease;
+    opacity 140ms ease; */
 }
 /* 1. WebKit Engines (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {

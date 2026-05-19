@@ -44,18 +44,14 @@ function App() {
     authenticated,
     loading,
     error,
-    tasksLoading,
     tasksError,
-    user,
     taskLists,
     tasksByList,
     signInWithGoogle,
-    signOut,
-    refreshGoogleTasks,
   } = useAuth();
 
   return (
-    <main className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-800 p-6 text-slate-100">
+    <main className="min-h-screen bg-black p-6 text-slate-100">
       <TitlebarProvider>
         <Titlebar />
       </TitlebarProvider>
@@ -66,38 +62,8 @@ function App() {
           signInWithGoogle={signInWithGoogle}
         />
       ) : (
-        <section className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-          <header className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-md">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  Signed in
-                </p>
-                <h1 className="mt-2 text-3xl font-semibold">
-                  {user?.name || "Google User"}
-                </h1>
-                <p className="text-sm text-slate-300">{user?.email}</p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => void refreshGoogleTasks()}
-                  disabled={tasksLoading}
-                  className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {tasksLoading ? "Loading tasks..." : "Refresh tasks"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void signOut()}
-                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-100 hover:bg-red-500/20"
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-
+        <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 mt-15">
+          <header className="flex justify-end gap-2">
             {tasksError ? (
               <p className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
                 {tasksError}

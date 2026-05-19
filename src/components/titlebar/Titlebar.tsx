@@ -1,4 +1,7 @@
+import { useAuth } from "../auth/context/useAuth";
 import { useTitlebar } from "./context/useTitlebar";
+import { useState, useMemo } from "react";
+import { PinIcon, Star, LogOut, RefreshCcw, User } from "lucide-react";
 const drag = {
   WebkitAppRegion: "drag",
 } as React.CSSProperties;
@@ -16,22 +19,99 @@ function Titlebar() {
     handleMaximize,
     handleClose,
   } = useTitlebar();
+  const {
+    authenticated,
+    signInWithGoogle,
+    user,
+    tasksLoading,
+    signOut,
+    refreshGoogleTasks,
+  } = useAuth();
+
+  function ProfileImage({
+    src,
+    name,
+  }: {
+    src?: string | null;
+    name?: string | null;
+  }) {
+    const [errored, setErrored] = useState(false);
+
+    const initials = useMemo(() => {
+      if (!name) return "?";
+      return name
+        .split(" ")
+        .map((s) => s[0] ?? "")
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+    }, [name]);
+
+    if (!src || errored) {
+      return (
+        <div
+          className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold text-white"
+          aria-hidden
+        >
+          {initials}
+        </div>
+      );
+    }
+
+    return (
+      // keep onError handler to fall back to initials if remote image fails
+      <img
+        src={src}
+        alt={name ?? "Profile"}
+        className="w-8 h-8 rounded-full border border-white/20"
+        onError={() => setErrored(true)}
+      />
+    );
+  }
 
   return (
     <section
-      className="fixed z-10 inset-x-0 top-0 w-full flex items-center justify-end gap-4 px-3 py-2 bg-black/50 rounded-md shadow-xl"
+      className="fixed inset-x-0 top-0 w-full flex items-center justify-end gap-4 px-3 py-2 bg-black/50 rounded-md shadow-xl"
       style={drag}
     >
       <div className="flex items-center gap-2" style={noDrag}>
+        {authenticated ? (
+          <ProfileImage src={user?.picture ?? null} name={user?.name ?? null} />
+        ) : (
+          <button
+            onClick={signInWithGoogle}
+            className="rounded-full border border-white/20 bg-white/5 text-white"
+          >
+            <User className="rounded-full w-8 h-8 p-2" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void refreshGoogleTasks()}
+          disabled={tasksLoading}
+          className="rounded-2xl border border-white/20 bg-white/5 text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCcw className="rounded-full w-8 h-8 p-2" />
+        </button>
+        {authenticated ? (
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-2xl border border-red-500/30 bg-red-500/10  hover:bg-red-500/20"
+          >
+            <LogOut className="rounded-full w-8 h-8 p-2" />
+          </button>
+        ) : null}
+
         <button
           onClick={handlePinnedToggle}
           aria-label={windowState.pinned ? "Unpin window" : "Pin window"}
           title={windowState.pinned ? "Unpin window" : "Pin window"}
-          className={`inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/20 bg-white/5 text-white ${
-            windowState.pinned ? "bg-amber-500! text-black" : ""
-          }`}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
         >
-          📌
+          <PinIcon
+            className={`rounded-full w-8 h-8 p-2 ${windowState.pinned ? "bg-amber-500! text-black hover:bg-amber-500/80!" : ""}`}
+          />
         </button>
 
         <button
@@ -46,11 +126,11 @@ function Titlebar() {
               ? "Disable always on top"
               : "Enable always on top"
           }
-          className={`inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/20 bg-white/5 text-white ${
-            windowState.alwaysOnTop ? "bg-amber-500! text-black" : ""
-          }`}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white cursor-pointer `}
         >
-          ⬆
+          <Star
+            className={`rounded-full w-8 h-8 p-2 ${windowState.alwaysOnTop ? "bg-amber-500! text-black hover:bg-amber-500/80!" : ""}`}
+          />
         </button>
 
         <button
