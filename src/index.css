@@ -37,12 +37,17 @@ button {
     background-color 140ms ease,
     opacity 140ms ease;
 }
-
-/* button:hover:not(:disabled) {
-  transform: translateY(-1px);
-} */
-
-/* button:focus-visible {
-  outline: 2px solid #f59e0b;
-  outline-offset: 2px;
-} */
+/* 1. WebKit Engines (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 2px; /* Set the width of the vertical scrollbar */
+}
+::-webkit-scrollbar-track {
+  /* Set the background of the scrollbar track */
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent; /* Set the background of the scrollbar thumb */
+  border-radius: 999px; /* Make the scrollbar thumb rounded */
+  height: 1px; /* Set the height of the horizontal scrollbar thumb */
+  /* Controls the draggable handle */
+}

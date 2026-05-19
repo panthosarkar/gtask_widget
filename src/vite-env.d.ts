@@ -29,6 +29,23 @@ interface Window {
         ) => void;
         disableAutoSelect: () => void;
       };
+      oauth2?: {
+        initTokenClient: (options: {
+          client_id: string;
+          scope: string;
+          callback: (response: {
+            access_token?: string;
+            expires_in?: number;
+            error?: string;
+            error_description?: string;
+            scope?: string;
+            token_type?: string;
+          }) => void;
+        }) => {
+          requestAccessToken: (options?: { prompt?: string }) => void;
+        };
+        revoke: (token: string, callback: () => void) => void;
+      };
     };
   };
 }

@@ -19,7 +19,7 @@ function Titlebar() {
 
   return (
     <section
-      className="flex items-center justify-end gap-4 p-3 bg-white/5 rounded-md shadow-xl"
+      className="fixed z-10 inset-x-0 top-0 w-full flex items-center justify-end gap-4 px-3 py-2 bg-black/50 rounded-md shadow-xl"
       style={drag}
     >
       <div className="flex items-center gap-2" style={noDrag}>
