@@ -29,6 +29,7 @@ type GoogleTask = {
   notes?: string;
   status?: string;
   due?: string;
+  completed?: string;
 };
 
 type GoogleTasksState = {
@@ -52,6 +53,25 @@ type AuthContextValue = AuthState & {
   signOut: () => Promise<void>;
   initializeGoogleAuth: () => Promise<void>;
   refreshGoogleTasks: () => Promise<void>;
+  createTask: (input: {
+    taskListId: string;
+    title: string;
+    notes?: string;
+    due?: string;
+  }) => Promise<void>;
+  updateTask: (input: {
+    taskListId: string;
+    taskId: string;
+    title: string;
+    notes?: string;
+    due?: string;
+  }) => Promise<void>;
+  toggleTaskStatus: (input: {
+    taskListId: string;
+    taskId: string;
+    completed: boolean;
+  }) => Promise<void>;
+  deleteTask: (input: { taskListId: string; taskId: string }) => Promise<void>;
 };
 
 type TProps = {
@@ -96,7 +116,7 @@ const GOOGLE_SCRIPT_ID = "google-identity-services";
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 // FIXED: Added profile/email scopes so fetchGoogleProfile doesn't throw a 403 error
 const GOOGLE_SCOPES =
-  "openid profile email https://www.googleapis.com/auth/tasks.readonly";
+  "openid profile email https://www.googleapis.com/auth/tasks";
 
 const defaultTasksState: GoogleTasksState = {
   taskLists: [],
@@ -123,6 +143,10 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => undefined,
   initializeGoogleAuth: async () => undefined,
   refreshGoogleTasks: async () => undefined,
+  createTask: async () => undefined,
+  updateTask: async () => undefined,
+  toggleTaskStatus: async () => undefined,
+  deleteTask: async () => undefined,
 });
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -193,6 +217,32 @@ async function fetchJson<T>(url: string, accessToken: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestJson<T>(
+  url: string,
+  accessToken: string,
+  init: RequestInit,
+): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed with ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
 async function fetchGoogleProfile(accessToken: string): Promise<GoogleProfile> {
   const profile = await fetchJson<Record<string, unknown>>(
     "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -251,6 +301,102 @@ async function fetchGoogleTasks(accessToken: string) {
     taskLists,
     tasksByList,
   };
+}
+
+async function createGoogleTask(
+  accessToken: string,
+  input: {
+    taskListId: string;
+    title: string;
+    notes?: string;
+    due?: string;
+  },
+) {
+  return requestJson<GoogleTask>(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(
+      input.taskListId,
+    )}/tasks`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        title: input.title,
+        notes: input.notes,
+        due: input.due,
+      }),
+    },
+  );
+}
+
+async function updateGoogleTask(
+  accessToken: string,
+  input: {
+    taskListId: string;
+    taskId: string;
+    title: string;
+    notes?: string;
+    due?: string;
+  },
+) {
+  return requestJson<GoogleTask>(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(
+      input.taskListId,
+    )}/tasks/${encodeURIComponent(input.taskId)}`,
+    accessToken,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: input.title,
+        notes: input.notes,
+        due: input.due,
+      }),
+    },
+  );
+}
+
+async function toggleGoogleTaskStatus(
+  accessToken: string,
+  input: {
+    taskListId: string;
+    taskId: string;
+    completed: boolean;
+  },
+) {
+  return requestJson<GoogleTask>(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(
+      input.taskListId,
+    )}/tasks/${encodeURIComponent(input.taskId)}`,
+    accessToken,
+    {
+      method: "PATCH",
+      body: JSON.stringify(
+        input.completed
+          ? {
+              status: "completed",
+              completed: new Date().toISOString(),
+            }
+          : {
+              status: "needsAction",
+              completed: null,
+            },
+      ),
+    },
+  );
+}
+
+async function deleteGoogleTask(
+  accessToken: string,
+  input: { taskListId: string; taskId: string },
+) {
+  return requestJson<void>(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(
+      input.taskListId,
+    )}/tasks/${encodeURIComponent(input.taskId)}`,
+    accessToken,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
@@ -321,6 +467,45 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
       throw error;
     }
   }, []); // Stable identity across renders!
+
+  const runTaskMutation = useCallback(
+    async (mutate: (accessToken: string) => Promise<void>) => {
+      const accessToken = state.accessToken;
+
+      if (!accessToken) {
+        throw new Error("Missing Google access token");
+      }
+
+      setState((current) => ({
+        ...current,
+        tasksLoading: true,
+        tasksError: null,
+      }));
+
+      try {
+        await mutate(accessToken);
+        const { taskLists, tasksByList } = await fetchGoogleTasks(accessToken);
+
+        setState((current) => ({
+          ...current,
+          taskLists,
+          tasksByList,
+          tasksLoading: false,
+          tasksError: null,
+        }));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to update task";
+        setState((current) => ({
+          ...current,
+          tasksLoading: false,
+          tasksError: message,
+        }));
+        throw error;
+      }
+    },
+    [state.accessToken],
+  );
 
   useEffect(() => {
     initializeGoogleAuth().catch((error: Error) => {
@@ -452,6 +637,57 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
     google?.accounts?.id?.disableAutoSelect();
   }, []); // FIXED: Removed state.accessToken dependency to ensure absolute consistency
 
+  const createTask = useCallback(
+    async (input: {
+      taskListId: string;
+      title: string;
+      notes?: string;
+      due?: string;
+    }) => {
+      await runTaskMutation((accessToken) =>
+        createGoogleTask(accessToken, input).then(() => undefined),
+      );
+    },
+    [runTaskMutation],
+  );
+
+  const updateTask = useCallback(
+    async (input: {
+      taskListId: string;
+      taskId: string;
+      title: string;
+      notes?: string;
+      due?: string;
+    }) => {
+      await runTaskMutation((accessToken) =>
+        updateGoogleTask(accessToken, input).then(() => undefined),
+      );
+    },
+    [runTaskMutation],
+  );
+
+  const toggleTaskStatus = useCallback(
+    async (input: {
+      taskListId: string;
+      taskId: string;
+      completed: boolean;
+    }) => {
+      await runTaskMutation((accessToken) =>
+        toggleGoogleTaskStatus(accessToken, input).then(() => undefined),
+      );
+    },
+    [runTaskMutation],
+  );
+
+  const deleteTask = useCallback(
+    async (input: { taskListId: string; taskId: string }) => {
+      await runTaskMutation((accessToken) =>
+        deleteGoogleTask(accessToken, input),
+      );
+    },
+    [runTaskMutation],
+  );
+
   const value = useMemo(
     () => ({
       ...state,
@@ -459,13 +695,21 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
       signOut,
       initializeGoogleAuth,
       refreshGoogleTasks,
+      createTask,
+      updateTask,
+      toggleTaskStatus,
+      deleteTask,
     }),
     [
       state,
       initializeGoogleAuth,
+      createTask,
+      deleteTask,
       refreshGoogleTasks,
       signInWithGoogle,
+      toggleTaskStatus,
       signOut,
+      updateTask,
     ],
   );
 
