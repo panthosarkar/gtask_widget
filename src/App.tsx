@@ -84,7 +84,7 @@ function App() {
               return (
                 <article
                   key={taskList.id}
-                  className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-md"
+                  //   className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-md"
                 >
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>

@@ -1,7 +1,16 @@
 import { useAuth } from "../auth/context/useAuth";
 import { useTitlebar } from "./context/useTitlebar";
 import { useState, useMemo } from "react";
-import { PinIcon, Star, LogOut, RefreshCcw, User } from "lucide-react";
+import {
+  PinIcon,
+  Star,
+  LogOut,
+  RefreshCcw,
+  User,
+  Minus,
+  Square,
+  Plus,
+} from "lucide-react";
 const drag = {
   WebkitAppRegion: "drag",
 } as React.CSSProperties;
@@ -71,7 +80,7 @@ function Titlebar() {
 
   return (
     <section
-      className="fixed inset-x-0 top-0 w-full flex items-center justify-end gap-4 px-3 py-2 bg-black/50 rounded-md shadow-xl"
+      className="fixed inset-x-0 top-0 w-full flex items-center justify-end gap-4 px-3 py-2 bg-black/50 shadow-xl border-b border-white/20 z-10"
       style={drag}
     >
       <div className="flex items-center gap-2" style={noDrag}>
@@ -137,26 +146,26 @@ function Titlebar() {
           onClick={handleMinimize}
           disabled={windowState.pinned}
           aria-label="Minimize"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/20 bg-white/5 text-white disabled:opacity-40"
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
         >
-          −
+          <Minus className="rounded-full w-8 h-8 p-2" />
         </button>
 
         <button
           onClick={handleMaximize}
           disabled={windowState.pinned}
           aria-label="Maximize or restore"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/20 bg-white/5 text-white disabled:opacity-40"
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
         >
-          {windowState.maximized ? "❐" : "▢"}
+          <Square className="rounded-full w-8 h-8 p-2" />
         </button>
 
         <button
           onClick={handleClose}
           aria-label="Close"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/20 bg-red-600/30 text-white"
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-red-500 text-white `}
         >
-          ×
+          <Plus className="rounded-full w-8 h-8 p-2 rotate-45 " />
         </button>
       </div>
     </section>
