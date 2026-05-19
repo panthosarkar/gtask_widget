@@ -13,13 +13,12 @@ const DEFAULT_WINDOW_STATE = {
   width: 420,
   height: 680
 };
-const WINDOW_STATE_FILE = path.join(
-  app.getPath("userData"),
-  "window-state.json"
-);
+function getWindowStateFile() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
 async function loadWindowState() {
   try {
-    const content = await promises.readFile(WINDOW_STATE_FILE, "utf-8");
+    const content = await promises.readFile(getWindowStateFile(), "utf-8");
     const parsed = JSON.parse(content);
     return {
       width: Number.isFinite(parsed.width) ? Math.max(320, Math.round(parsed.width)) : DEFAULT_WINDOW_STATE.width,
@@ -34,9 +33,10 @@ async function saveWindowState() {
     return;
   }
   const { width, height } = win.getBounds();
-  await promises.mkdir(path.dirname(WINDOW_STATE_FILE), { recursive: true });
+  const windowStateFile = getWindowStateFile();
+  await promises.mkdir(path.dirname(windowStateFile), { recursive: true });
   await promises.writeFile(
-    WINDOW_STATE_FILE,
+    windowStateFile,
     JSON.stringify({ width, height }, null, 2),
     "utf-8"
   );
@@ -100,6 +100,12 @@ async function createWindow() {
       return { closed: true };
     }
   };
+  ipcMain.removeHandler("window-controls:get-state");
+  ipcMain.removeHandler("window-controls:set-pinned");
+  ipcMain.removeHandler("window-controls:set-always-on-top");
+  ipcMain.removeHandler("window-controls:minimize");
+  ipcMain.removeHandler("window-controls:toggle-maximize");
+  ipcMain.removeHandler("window-controls:close");
   ipcMain.handle("window-controls:get-state", () => windowControls.getState());
   ipcMain.handle(
     "window-controls:set-pinned",
@@ -119,8 +125,12 @@ async function createWindow() {
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
-  win.on("resize", saveWindowState);
-  win.on("close", saveWindowState);
+  win.on("resize", () => {
+    void saveWindowState();
+  });
+  win.on("close", () => {
+    void saveWindowState();
+  });
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {

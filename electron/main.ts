@@ -1,10 +1,8 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-// import { createRequire } from "node:module";
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-// const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The built directory structure
@@ -39,14 +37,13 @@ const DEFAULT_WINDOW_STATE: WindowState = {
   height: 680,
 };
 
-const WINDOW_STATE_FILE = path.join(
-  app.getPath("userData"),
-  "window-state.json",
-);
+function getWindowStateFile() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
 
 async function loadWindowState(): Promise<WindowState> {
   try {
-    const content = await fs.readFile(WINDOW_STATE_FILE, "utf-8");
+    const content = await fs.readFile(getWindowStateFile(), "utf-8");
     const parsed = JSON.parse(content) as Partial<WindowState>;
 
     return {
@@ -68,10 +65,11 @@ async function saveWindowState() {
   }
 
   const { width, height } = win.getBounds();
+  const windowStateFile = getWindowStateFile();
 
-  await fs.mkdir(path.dirname(WINDOW_STATE_FILE), { recursive: true });
+  await fs.mkdir(path.dirname(windowStateFile), { recursive: true });
   await fs.writeFile(
-    WINDOW_STATE_FILE,
+    windowStateFile,
     JSON.stringify({ width, height }, null, 2),
     "utf-8",
   );
@@ -144,6 +142,13 @@ async function createWindow() {
     },
   };
 
+  ipcMain.removeHandler("window-controls:get-state");
+  ipcMain.removeHandler("window-controls:set-pinned");
+  ipcMain.removeHandler("window-controls:set-always-on-top");
+  ipcMain.removeHandler("window-controls:minimize");
+  ipcMain.removeHandler("window-controls:toggle-maximize");
+  ipcMain.removeHandler("window-controls:close");
+
   ipcMain.handle("window-controls:get-state", () => windowControls.getState());
   ipcMain.handle("window-controls:set-pinned", (_event, pinned: boolean) =>
     windowControls.setPinned(pinned),
@@ -166,8 +171,12 @@ async function createWindow() {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
   });
 
-  win.on("resize", saveWindowState);
-  win.on("close", saveWindowState);
+  win.on("resize", () => {
+    void saveWindowState();
+  });
+  win.on("close", () => {
+    void saveWindowState();
+  });
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);

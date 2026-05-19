@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   font-family: "Segoe UI Variable", "Aptos", "Helvetica Neue", sans-serif;
   line-height: 1.5;
@@ -36,11 +38,11 @@ button {
     opacity 140ms ease;
 }
 
-button:hover:not(:disabled) {
+/* button:hover:not(:disabled) {
   transform: translateY(-1px);
-}
+} */
 
-button:focus-visible {
+/* button:focus-visible {
   outline: 2px solid #f59e0b;
   outline-offset: 2px;
-}
+} */

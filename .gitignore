@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Electron build
+out
+release
+build
+electron-dist
+.vite
+
+.env
+.env.*
