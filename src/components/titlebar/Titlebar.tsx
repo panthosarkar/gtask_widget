@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useTitlebar } from "./context/useTitlebar";
 const drag = {
   WebkitAppRegion: "drag",
