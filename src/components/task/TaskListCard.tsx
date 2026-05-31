@@ -1,8 +1,22 @@
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { GoogleTask, GoogleTaskList } from "../auth/context/AuthProvider";
 import { Edit, PlusCircle, Trash } from "lucide-react";
 import { useTaskModal } from "./context/useTaskModal";
 import TaskListSelector from "./TaskListSelector";
+import SortableTaskItem from "../SortableTaskItem";
 
 const taskIsCompleted = (task: GoogleTask) =>
   task.status === "completed" || Boolean(task.completed);
@@ -44,6 +58,11 @@ const TaskListCard: FC<{
     taskListId: string;
     taskId: string;
   }) => Promise<void>;
+  onReorderTask: (input: {
+    taskListId: string;
+    taskId: string;
+    previousTaskId?: string;
+  }) => Promise<void>;
 }> = ({
   taskList,
   tasks,
@@ -55,8 +74,18 @@ const TaskListCard: FC<{
   onToggleTask,
   // onUpdateTask,
   onDeleteTask,
+  onReorderTask,
 }) => {
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  const [localTasks, setLocalTasks] = useState(tasks);
+
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
 
   const { openAdd, openEdit } = useTaskModal();
 
@@ -95,6 +124,41 @@ const TaskListCard: FC<{
       setBusyTaskId(null);
     }
   };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = localTasks.findIndex((task) => task.id === active.id);
+    const newIndex = localTasks.findIndex((task) => task.id === over.id);
+
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    const previousTasks = localTasks;
+    const reordered = arrayMove(localTasks, oldIndex, newIndex);
+    setLocalTasks(reordered);
+
+    const previousTaskId =
+      newIndex > 0 ? reordered[newIndex - 1]?.id : undefined;
+
+    try {
+      await onReorderTask({
+        taskListId: taskList.id,
+        taskId: String(active.id),
+        previousTaskId,
+      });
+    } catch {
+      setLocalTasks(previousTasks);
+    }
+  };
+
+  const activeTasks = localTasks.filter((task) => !taskIsCompleted(task));
+  const completedTasks = localTasks.filter((task) => taskIsCompleted(task));
 
   return (
     <article className="px-5 top-14 w-full max-w-[95%]">
@@ -155,79 +219,155 @@ const TaskListCard: FC<{
         </button>
       </form> */}
 
-      {tasks.length === 0 ? (
+      {localTasks.length === 0 ? (
         <p className="text-sm text-slate-300">No tasks in this list.</p>
       ) : (
-        <ul className="space-y-3">
-          {tasks.map((task) => {
-            const completed = taskIsCompleted(task);
-            // const isEditing = editingTaskId === task.id;
-            const isBusy = busyTaskId === task.id;
-            const due = formatDueDate(task.due);
-
-            return (
-              <li
-                key={task.id}
-                className="p-2.5 border-b border-white/15 last:border-0"
+        <>
+          {activeTasks.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event) => void handleDragEnd(event)}
+            >
+              <SortableContext
+                items={activeTasks.map((task) => task.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={completed}
-                    onChange={() => void toggleTask(task)}
-                    disabled={loading || isBusy}
-                    className="mt-1 h-4 w-4 rounded-full border-white/30 bg-slate-900 text-sky-500 focus:ring-sky-400"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span
-                        className={`font-medium ${
-                          completed
-                            ? "text-slate-500 line-through"
-                            : "text-slate-100"
-                        }`}
-                      >
-                        {task.title}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(task)}
+                <ul className="space-y-3">
+                  {activeTasks.map((task) => {
+                    const isBusy = busyTaskId === task.id;
+                    const due = formatDueDate(task.due);
+
+                    return (
+                      <SortableTaskItem key={task.id} id={task.id}>
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            onChange={() => void toggleTask(task)}
+                            disabled={loading || isBusy}
+                            className="mt-1 h-4 w-4 rounded-full border border-white/30 bg-slate-900 text-sky-500 focus:ring-0 appearance-none checked:bg-sky-500 checked:border-sky-500 cursor-pointer"
+                            style={{
+                              borderRadius: "50%",
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium text-slate-100">
+                                {task.title}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(task)}
+                                  disabled={loading || isBusy}
+                                  className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-500/10"
+                                >
+                                  <Edit className="rounded-full w-8 h-8 p-2" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteTask(task.id)}
+                                  disabled={loading || isBusy}
+                                  className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-900/10"
+                                >
+                                  <Trash className="rounded-full w-8 h-8 p-2" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {due ? (
+                              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
+                                Due {due}
+                              </p>
+                            ) : null}
+
+                            {task.notes ? (
+                              <p className="mt-2 text-sm text-slate-300">
+                                {task.notes}
+                              </p>
+                            ) : null}
+                          </div>
+                        </label>
+                      </SortableTaskItem>
+                    );
+                  })}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          ) : null}
+
+          {completedTasks.length > 0 ? (
+            <section className="mt-6 border-t border-white/10 pt-4">
+              <p className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">
+                Completed
+              </p>
+              <ul className="space-y-3">
+                {completedTasks.map((task) => {
+                  const isBusy = busyTaskId === task.id;
+                  const due = formatDueDate(task.due);
+
+                  return (
+                    <li
+                      key={task.id}
+                      className="p-2.5 border-b border-white/15 last:border-0 cursor-grab active:cursor-grabbing opacity-70"
+                    >
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          onChange={() => void toggleTask(task)}
                           disabled={loading || isBusy}
-                          className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-500/10"
-                        >
-                          <Edit className="rounded-full w-8 h-8 p-2" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void deleteTask(task.id)}
-                          disabled={loading || isBusy}
-                          className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-900/10"
-                        >
-                          <Trash className="rounded-full w-8 h-8 p-2" />
-                        </button>
-                      </div>
-                    </div>
+                          className="mt-1 h-4 w-4 rounded-full border border-white/30 bg-slate-900 text-sky-500 focus:ring-0 appearance-none checked:bg-sky-500 checked:border-sky-500 cursor-pointer"
+                          style={{
+                            borderRadius: "50%",
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium text-slate-500 line-through">
+                              {task.title}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(task)}
+                                disabled={loading || isBusy}
+                                className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-500/10"
+                              >
+                                <Edit className="rounded-full w-8 h-8 p-2" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteTask(task.id)}
+                                disabled={loading || isBusy}
+                                className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-900/10"
+                              >
+                                <Trash className="rounded-full w-8 h-8 p-2" />
+                              </button>
+                            </div>
+                          </div>
 
-                    {due ? (
-                      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                        Due {due}
-                      </p>
-                    ) : null}
+                          {due ? (
+                            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
+                              Due {due}
+                            </p>
+                          ) : null}
 
-                    {task.notes ? (
-                      <p className="mt-2 text-sm text-slate-300">
-                        {task.notes}
-                      </p>
-                    ) : null}
-
-                    {null}
-                  </div>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+                          {task.notes ? (
+                            <p className="mt-2 text-sm text-slate-300">
+                              {task.notes}
+                            </p>
+                          ) : null}
+                        </div>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+        </>
       )}
 
       {/* Modal handled by TaskModalProvider */}

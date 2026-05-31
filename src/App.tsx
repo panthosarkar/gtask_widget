@@ -52,6 +52,7 @@ function App() {
     signInWithGoogle,
     createTask,
     updateTask,
+    reorderTask,
     toggleTaskStatus,
     deleteTask,
   } = useAuth();
@@ -189,6 +190,7 @@ function App() {
                 onToggleTask={toggleTaskStatus}
                 onUpdateTask={updateTask}
                 onDeleteTask={deleteTask}
+                onReorderTask={reorderTask}
                 taskLists={taskLists}
                 setSelectedTaskListId={setSelectedTaskListId}
                 selectedTaskList={selectedTaskList}

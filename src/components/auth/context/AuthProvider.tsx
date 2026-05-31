@@ -66,6 +66,11 @@ type AuthContextValue = AuthState & {
     notes?: string;
     due?: string;
   }) => Promise<void>;
+  reorderTask: (input: {
+    taskListId: string;
+    taskId: string;
+    previousTaskId?: string;
+  }) => Promise<void>;
   toggleTaskStatus: (input: {
     taskListId: string;
     taskId: string;
@@ -145,6 +150,7 @@ const AuthContext = createContext<AuthContextValue>({
   refreshGoogleTasks: async () => undefined,
   createTask: async () => undefined,
   updateTask: async () => undefined,
+  reorderTask: async () => undefined,
   toggleTaskStatus: async () => undefined,
   deleteTask: async () => undefined,
 });
@@ -395,6 +401,22 @@ async function deleteGoogleTask(
     accessToken,
     {
       method: "DELETE",
+    },
+  );
+}
+
+async function moveGoogleTask(
+  accessToken: string,
+  input: { taskListId: string; taskId: string; previousTaskId?: string },
+) {
+  return requestJson<void>(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(
+      input.taskListId,
+    )}/tasks/${encodeURIComponent(input.taskId)}/move`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({ previous: input.previousTaskId ?? "" }),
     },
   );
 }
@@ -743,6 +765,19 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
     [runTaskMutation],
   );
 
+  const reorderTask = useCallback(
+    async (input: {
+      taskListId: string;
+      taskId: string;
+      previousTaskId?: string;
+    }) => {
+      await runTaskMutation((accessToken) =>
+        moveGoogleTask(accessToken, input).then(() => undefined),
+      );
+    },
+    [runTaskMutation],
+  );
+
   const toggleTaskStatus = useCallback(
     async (input: {
       taskListId: string;
@@ -773,6 +808,7 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
       initializeGoogleAuth,
       refreshGoogleTasks,
       createTask,
+      reorderTask,
       updateTask,
       toggleTaskStatus,
       deleteTask,
@@ -784,6 +820,7 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
       deleteTask,
       refreshGoogleTasks,
       signInWithGoogle,
+      reorderTask,
       toggleTaskStatus,
       signOut,
       updateTask,
