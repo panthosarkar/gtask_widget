@@ -89,7 +89,7 @@ function Titlebar() {
         ) : (
           <button
             onClick={signInWithGoogle}
-            className="rounded-full border border-white/20 bg-white/5 text-white"
+            className="rounded-full border border-white/20 bg-white/5 text-white cursor-pointer"
           >
             <User className="rounded-full w-8 h-8 p-2" />
           </button>
@@ -98,7 +98,7 @@ function Titlebar() {
           type="button"
           onClick={() => void refreshGoogleTasks()}
           disabled={tasksLoading}
-          className="rounded-2xl border border-white/20 bg-white/5 text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-2xl border border-white/20 bg-white/5 text-white disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
         >
           <RefreshCcw className="rounded-full w-8 h-8 p-2" />
         </button>
@@ -106,7 +106,7 @@ function Titlebar() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className="rounded-2xl border border-red-500/30 bg-red-500/10  hover:bg-red-500/20"
+            className="rounded-2xl border border-red-500/30 bg-red-500/10  hover:bg-red-500/20 cursor-pointer"
           >
             <LogOut className="rounded-full w-8 h-8 p-2" />
           </button>
@@ -116,7 +116,7 @@ function Titlebar() {
           onClick={handlePinnedToggle}
           aria-label={windowState.pinned ? "Unpin window" : "Pin window"}
           title={windowState.pinned ? "Unpin window" : "Pin window"}
-          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white cursor-pointer`}
         >
           <PinIcon
             className={`rounded-full w-8 h-8 p-2 ${windowState.pinned ? "bg-amber-500! text-black hover:bg-amber-500/80!" : ""}`}
@@ -146,7 +146,7 @@ function Titlebar() {
           onClick={handleMinimize}
           disabled={windowState.pinned}
           aria-label="Minimize"
-          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white cursor-pointer`}
         >
           <Minus className="rounded-full w-8 h-8 p-2" />
         </button>
@@ -155,7 +155,7 @@ function Titlebar() {
           onClick={handleMaximize}
           disabled={windowState.pinned}
           aria-label="Maximize or restore"
-          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white `}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-white/5 text-white cursor-pointer`}
         >
           <Square className="rounded-full w-8 h-8 p-2" />
         </button>
@@ -163,7 +163,7 @@ function Titlebar() {
         <button
           onClick={handleClose}
           aria-label="Close"
-          className={`flex items-center justify-center rounded-full border border-white/20 bg-red-500 text-white `}
+          className={`flex items-center justify-center rounded-full border border-white/20 bg-red-500 text-white cursor-pointer`}
         >
           <Plus className="rounded-full w-8 h-8 p-2 rotate-45 " />
         </button>

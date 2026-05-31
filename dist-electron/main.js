@@ -1,95 +1,195 @@
-import { app as r, BrowserWindow as h, ipcMain as i } from "electron";
-import { promises as m } from "node:fs";
-import { fileURLToPath as v } from "node:url";
-import o from "node:path";
-const u = o.dirname(v(import.meta.url));
-process.env.APP_ROOT = o.join(u, "..");
-const c = process.env.VITE_DEV_SERVER_URL, M = o.join(process.env.APP_ROOT, "dist-electron"), p = o.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = c ? o.join(process.env.APP_ROOT, "public") : p;
-let e;
-const l = {
+import { app, BrowserWindow, ipcMain } from "electron";
+import { promises } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path.join(__dirname$1, "..");
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
+const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+let win;
+const DEFAULT_WINDOW_STATE = {
   width: 420,
   height: 680
 };
-function f() {
-  return o.join(r.getPath("userData"), "window-state.json");
+function getWindowStateFile() {
+  return path.join(app.getPath("userData"), "window-state.json");
 }
-async function z() {
+async function loadWindowState() {
   try {
-    const a = await m.readFile(f(), "utf-8"), n = JSON.parse(a);
+    const content = await promises.readFile(getWindowStateFile(), "utf-8");
+    const parsed = JSON.parse(content);
     return {
-      width: Number.isFinite(n.width) ? Math.max(320, Math.round(n.width)) : l.width,
-      height: Number.isFinite(n.height) ? Math.max(240, Math.round(n.height)) : l.height
+      width: Number.isFinite(parsed.width) ? Math.max(320, Math.round(parsed.width)) : DEFAULT_WINDOW_STATE.width,
+      height: Number.isFinite(parsed.height) ? Math.max(240, Math.round(parsed.height)) : DEFAULT_WINDOW_STATE.height
     };
   } catch {
-    return l;
+    return DEFAULT_WINDOW_STATE;
   }
 }
-async function w() {
-  if (!e || e.isDestroyed())
+async function saveWindowState() {
+  if (!win || win.isDestroyed()) {
     return;
-  const { width: a, height: n } = e.getBounds(), s = f();
-  await m.mkdir(o.dirname(s), { recursive: !0 }), await m.writeFile(
-    s,
-    JSON.stringify({ width: a, height: n }, null, 2),
+  }
+  const { width, height } = win.getBounds();
+  const windowStateFile = getWindowStateFile();
+  await promises.mkdir(path.dirname(windowStateFile), { recursive: true });
+  await promises.writeFile(
+    windowStateFile,
+    JSON.stringify({ width, height }, null, 2),
     "utf-8"
   );
 }
-async function g() {
-  const a = await z();
-  e = new h({
-    width: a.width,
-    height: a.height,
+async function createWindow() {
+  const windowState = await loadWindowState();
+  win = new BrowserWindow({
+    width: windowState.width,
+    height: windowState.height,
     minWidth: 320,
     minHeight: 240,
-    frame: !1,
-    icon: o.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    frame: false,
+    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: o.join(u, "preload.mjs")
+      preload: path.join(__dirname$1, "preload.mjs")
     }
   });
-  const n = (t) => {
-    !e || e.isDestroyed() || (e.setMovable(!t), e.setResizable(!t), e.setMinimizable(!t), e.setMaximizable(!t));
-  }, s = {
-    getState: () => ({
-      pinned: !(e != null && e.isMovable()),
-      alwaysOnTop: !!(e != null && e.isAlwaysOnTop()),
-      maximized: !!(e != null && e.isMaximized())
-    }),
-    setPinned: (t) => (n(t), { pinned: t }),
-    setAlwaysOnTop: (t) => (e == null || e.setAlwaysOnTop(t), { alwaysOnTop: t }),
-    minimize: () => e != null && e.isMinimizable() ? (e.minimize(), { minimized: !0 }) : { minimized: !1 },
-    toggleMaximize: () => e != null && e.isMaximizable() ? e.isMaximized() ? (e.unmaximize(), { maximized: !1 }) : (e.maximize(), { maximized: !0 }) : { maximized: !1 },
-    close: () => (e == null || e.close(), { closed: !0 })
+  const setWindowPinned = (pinned) => {
+    if (!win || win.isDestroyed()) {
+      return;
+    }
+    win.setMovable(!pinned);
+    win.setResizable(!pinned);
+    win.setMinimizable(!pinned);
+    win.setMaximizable(!pinned);
   };
-  i.removeHandler("window-controls:get-state"), i.removeHandler("window-controls:set-pinned"), i.removeHandler("window-controls:set-always-on-top"), i.removeHandler("window-controls:minimize"), i.removeHandler("window-controls:toggle-maximize"), i.removeHandler("window-controls:close"), i.handle("window-controls:get-state", () => s.getState()), i.handle(
+  const windowControls = {
+    getState: () => ({
+      pinned: !(win == null ? void 0 : win.isMovable()),
+      alwaysOnTop: !!(win == null ? void 0 : win.isAlwaysOnTop()),
+      maximized: !!(win == null ? void 0 : win.isMaximized())
+    }),
+    setPinned: (pinned) => {
+      setWindowPinned(pinned);
+      return { pinned };
+    },
+    setAlwaysOnTop: (alwaysOnTop) => {
+      win == null ? void 0 : win.setAlwaysOnTop(alwaysOnTop);
+      return { alwaysOnTop };
+    },
+    minimize: () => {
+      if (!(win == null ? void 0 : win.isMinimizable())) {
+        return { minimized: false };
+      }
+      win.minimize();
+      return { minimized: true };
+    },
+    toggleMaximize: () => {
+      if (!(win == null ? void 0 : win.isMaximizable())) {
+        return { maximized: false };
+      }
+      if (win.isMaximized()) {
+        win.unmaximize();
+        return { maximized: false };
+      }
+      win.maximize();
+      return { maximized: true };
+    },
+    close: () => {
+      win == null ? void 0 : win.close();
+      return { closed: true };
+    }
+  };
+  ipcMain.removeHandler("window-controls:get-state");
+  ipcMain.removeHandler("window-controls:set-pinned");
+  ipcMain.removeHandler("window-controls:set-always-on-top");
+  ipcMain.removeHandler("window-controls:minimize");
+  ipcMain.removeHandler("window-controls:toggle-maximize");
+  ipcMain.removeHandler("window-controls:close");
+  ipcMain.handle("window-controls:get-state", () => windowControls.getState());
+  ipcMain.handle(
     "window-controls:set-pinned",
-    (t, d) => s.setPinned(d)
-  ), i.handle(
+    (_event, pinned) => windowControls.setPinned(pinned)
+  );
+  ipcMain.handle(
     "window-controls:set-always-on-top",
-    (t, d) => s.setAlwaysOnTop(d)
-  ), i.handle("window-controls:minimize", () => s.minimize()), i.handle(
+    (_event, alwaysOnTop) => windowControls.setAlwaysOnTop(alwaysOnTop)
+  );
+  ipcMain.handle("window-controls:minimize", () => windowControls.minimize());
+  ipcMain.handle(
     "window-controls:toggle-maximize",
-    () => s.toggleMaximize()
-  ), i.handle("window-controls:close", () => s.close()), n(!1), e.webContents.on("did-finish-load", () => {
-    e == null || e.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  }), e.on("resize", () => {
-    w();
-  }), e.on("close", () => {
-    w();
-  }), c ? (e.loadURL(c), e.webContents.once("did-finish-load", () => {
-    e == null || e.webContents.openDevTools({ mode: "detach" });
-  })) : e.loadFile(o.join(p, "index.html"));
+    () => windowControls.toggleMaximize()
+  );
+  ipcMain.handle("window-controls:close", () => windowControls.close());
+  ipcMain.handle(
+    "open-task-window",
+    (_event, opts) => {
+      const modal = new BrowserWindow({
+        parent: win ?? void 0,
+        modal: true,
+        width: 480,
+        height: 420,
+        useContentSize: true,
+        show: false,
+        resizable: false,
+        frame: false,
+        webPreferences: {
+          preload: path.join(__dirname$1, "preload.mjs")
+        }
+      });
+      const qs = new URLSearchParams();
+      qs.set("taskModal", "1");
+      qs.set("mode", opts.mode ?? "add");
+      if (opts.taskListId) qs.set("taskListId", opts.taskListId);
+      if (opts.taskId) qs.set("taskId", opts.taskId);
+      const urlWithQuery = VITE_DEV_SERVER_URL ? `${VITE_DEV_SERVER_URL}?${qs.toString()}` : `file://${path.join(RENDERER_DIST, "index.html")}?${qs.toString()}`;
+      modal.loadURL(urlWithQuery);
+      const tryShow = () => {
+        if (modal && !modal.isDestroyed()) {
+          modal.show();
+          modal.focus();
+        }
+      };
+      modal.once("ready-to-show", tryShow);
+      modal.webContents.once("did-finish-load", () => {
+        if (!modal.isVisible()) tryShow();
+      });
+      return true;
+    }
+  );
+  setWindowPinned(false);
+  win.webContents.on("did-finish-load", () => {
+    win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  win.on("resize", () => {
+    void saveWindowState();
+  });
+  win.on("close", () => {
+    void saveWindowState();
+  });
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+    win.webContents.once("did-finish-load", () => {
+      win == null ? void 0 : win.webContents.openDevTools({ mode: "detach" });
+    });
+  } else {
+    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+  }
 }
-r.on("window-all-closed", () => {
-  process.platform !== "darwin" && (r.quit(), e = null);
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+    win = null;
+  }
 });
-r.on("activate", () => {
-  h.getAllWindows().length === 0 && g();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-r.whenReady().then(g);
+app.whenReady().then(createWindow);
 export {
-  M as MAIN_DIST,
-  p as RENDERER_DIST,
-  c as VITE_DEV_SERVER_URL
+  MAIN_DIST,
+  RENDERER_DIST,
+  VITE_DEV_SERVER_URL
 };

@@ -402,6 +402,8 @@ async function deleteGoogleTask(
 const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
   const [state, setState] = useState<AuthState>(defaultAuthState);
 
+  const LOCAL_STORAGE_KEY = "gtask_auth";
+
   const initializeGoogleAuth = useCallback(async () => {
     if (!clientId) {
       setState((current) => ({
@@ -517,6 +519,59 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
     });
   }, [initializeGoogleAuth]);
 
+  // Restore saved auth from localStorage if present
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        accessToken?: string | null;
+        expiresAt?: number;
+        user?: GoogleProfile | null;
+      };
+
+      if (!parsed.accessToken) return;
+
+      const now = Date.now();
+      if (parsed.expiresAt && parsed.expiresAt < now) {
+        // expired
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        return;
+      }
+
+      // restore minimal auth state and load tasks/profile
+      (async () => {
+        setState((current) => ({ ...current, loading: true }));
+        try {
+          const user =
+            parsed.user ?? (await fetchGoogleProfile(parsed.accessToken!));
+          const { taskLists, tasksByList } = await fetchGoogleTasks(
+            parsed.accessToken!,
+          );
+
+          setState((current) => ({
+            ...current,
+            loading: false,
+            initialized: true,
+            authenticated: true,
+            user,
+            accessToken: parsed.accessToken ?? null,
+            error: null,
+            taskLists,
+            tasksByList,
+            tasksLoading: false,
+            tasksError: null,
+          }));
+        } catch (err) {
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+          setState((current) => ({ ...current, loading: false }));
+        }
+      })();
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     if (!clientId) {
       throw new Error("Missing VITE_GOOGLE_CLIENT_ID");
@@ -573,6 +628,23 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
             const { taskLists, tasksByList } = await fetchGoogleTasks(
               response.access_token,
             );
+
+            const expiresIn = response.expires_in ?? 3600;
+            const expiresAt = Date.now() + expiresIn * 1000;
+
+            // persist token + user minimal info
+            try {
+              localStorage.setItem(
+                LOCAL_STORAGE_KEY,
+                JSON.stringify({
+                  accessToken: response.access_token,
+                  expiresAt,
+                  user,
+                }),
+              );
+            } catch (error) {
+              void error;
+            }
 
             setState((current) => ({
               ...current,
@@ -633,8 +705,13 @@ const AuthProvider: FC<TProps> = ({ children, clientId = googleClientId }) => {
         google.accounts.oauth2?.revoke(accessToken!, () => resolve());
       });
     }
-
     google?.accounts?.id?.disableAutoSelect();
+
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch (error) {
+      void error;
+    }
   }, []); // FIXED: Removed state.accessToken dependency to ensure absolute consistency
 
   const createTask = useCallback(

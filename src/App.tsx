@@ -1,8 +1,9 @@
-import { FC } from "react";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./components/auth/context/useAuth";
 import TitlebarProvider from "./components/titlebar/context/TitlebarProvider";
 import Titlebar from "./components/titlebar/Titlebar";
 import TaskListCard from "./components/task/TaskListCard";
+import TaskModal from "./components/task/TaskModal";
 
 export const AuthenticatedApp: FC<{
   loading: boolean;
@@ -55,12 +56,103 @@ function App() {
     deleteTask,
   } = useAuth();
 
+  const [selectedTaskListId, setSelectedTaskListId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+
+    return localStorage.getItem("gtask_selected_task_list") ?? "";
+  });
+
+  const selectedTaskList = useMemo(() => {
+    if (taskLists.length === 0) return null;
+
+    return (
+      taskLists.find((taskList) => taskList.id === selectedTaskListId) ??
+      taskLists[0] ??
+      null
+    );
+  }, [selectedTaskListId, taskLists]);
+
+  useEffect(() => {
+    if (!selectedTaskList) return;
+
+    if (selectedTaskList.id !== selectedTaskListId) {
+      setSelectedTaskListId(selectedTaskList.id);
+      return;
+    }
+
+    try {
+      localStorage.setItem("gtask_selected_task_list", selectedTaskList.id);
+    } catch {
+      // ignore storage failures
+    }
+  }, [selectedTaskList, selectedTaskListId]);
+
+  useEffect(() => {
+    if (!taskLists.length) return;
+
+    const stored = localStorage.getItem("gtask_selected_task_list");
+    const nextId =
+      stored && taskLists.some((taskList) => taskList.id === stored)
+        ? stored
+        : (taskLists[0]?.id ?? "");
+
+    if (nextId && nextId !== selectedTaskListId) {
+      setSelectedTaskListId(nextId);
+    }
+  }, [selectedTaskListId, taskLists]);
+
   return (
     <main className="min-h-screen max-w-full mx-0 my-auto flex items-center justify-center bg-black text-slate-100">
       <TitlebarProvider>
         <Titlebar />
       </TitlebarProvider>
-      {!authenticated ? (
+      {/* task modal window mode */}
+      {new URLSearchParams(window.location.search).get("taskModal") === "1" ? (
+        (() => {
+          const params = new URLSearchParams(window.location.search);
+          const mode = params.get("mode") ?? "add";
+          const taskListId = params.get("taskListId") ?? undefined;
+          const taskId = params.get("taskId") ?? undefined;
+
+          if (!taskListId) {
+            return <div className="p-6 text-slate-300">Missing taskListId</div>;
+          }
+
+          const tasks = tasksByList[taskListId] ?? [];
+          const task = taskId ? tasks.find((t) => t.id === taskId) : undefined;
+
+          return (
+            <TaskModal
+              open={true}
+              initialTitle={task?.title ?? ""}
+              initialNotes={task?.notes ?? ""}
+              initialDue={task?.due ?? undefined}
+              title={mode === "add" ? "Add task" : "Edit task"}
+              saving={false}
+              onClose={() => window.close()}
+              onSubmit={async (payload) => {
+                if (mode === "add") {
+                  await createTask({
+                    taskListId: taskListId,
+                    title: payload.title,
+                    notes: payload.notes,
+                    due: payload.due,
+                  });
+                } else if (mode === "edit" && taskId) {
+                  await updateTask({
+                    taskListId: taskListId,
+                    taskId,
+                    title: payload.title,
+                    notes: payload.notes,
+                    due: payload.due,
+                  });
+                }
+                window.close();
+              }}
+            />
+          );
+        })()
+      ) : !authenticated ? (
         <AuthenticatedApp
           loading={loading}
           error={error}
@@ -80,24 +172,29 @@ function App() {
             </div>
           ) : null}
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {taskLists.map((taskList) => {
-              const tasks = tasksByList[taskList.id] ?? [];
+          {/* <div className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+              Active list
+            </p>
+          </div> */}
 
-              return (
-                <TaskListCard
-                  key={taskList.id}
-                  taskList={taskList}
-                  tasks={tasks}
-                  loading={loading}
-                  onAddTask={createTask}
-                  onToggleTask={toggleTaskStatus}
-                  onUpdateTask={updateTask}
-                  onDeleteTask={deleteTask}
-                />
-              );
-            })}
-          </section>
+          {selectedTaskList ? (
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <TaskListCard
+                key={selectedTaskList.id}
+                taskList={selectedTaskList}
+                tasks={tasksByList[selectedTaskList.id] ?? []}
+                loading={loading}
+                onAddTask={createTask}
+                onToggleTask={toggleTaskStatus}
+                onUpdateTask={updateTask}
+                onDeleteTask={deleteTask}
+                taskLists={taskLists}
+                setSelectedTaskListId={setSelectedTaskListId}
+                selectedTaskList={selectedTaskList}
+              />
+            </section>
+          ) : null}
         </section>
       )}
     </main>

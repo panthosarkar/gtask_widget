@@ -1,5 +1,8 @@
-import { FC, FormEvent, useState } from "react";
+import { FC, useState } from "react";
 import { GoogleTask, GoogleTaskList } from "../auth/context/AuthProvider";
+import { Edit, PlusCircle, Trash } from "lucide-react";
+import { useTaskModal } from "./context/useTaskModal";
+import TaskListSelector from "./TaskListSelector";
 
 const taskIsCompleted = (task: GoogleTask) =>
   task.status === "completed" || Boolean(task.completed);
@@ -13,6 +16,9 @@ const formatDueDate = (due?: string) => {
   return date.toLocaleString();
 };
 const TaskListCard: FC<{
+  taskLists: GoogleTaskList[];
+  selectedTaskList: GoogleTaskList | null;
+  setSelectedTaskListId: (id: string) => void;
   taskList: GoogleTaskList;
   tasks: GoogleTask[];
   loading: boolean;
@@ -42,64 +48,30 @@ const TaskListCard: FC<{
   taskList,
   tasks,
   loading,
-  onAddTask,
+  taskLists,
+  selectedTaskList,
+  setSelectedTaskListId,
+  // onAddTask,
   onToggleTask,
-  onUpdateTask,
+  // onUpdateTask,
   onDeleteTask,
 }) => {
-  const [newTitle, setNewTitle] = useState("");
-  const [newNotes, setNewNotes] = useState("");
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editNotes, setEditNotes] = useState("");
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
-  const [savingNew, setSavingNew] = useState(false);
 
-  const startEdit = (task: GoogleTask) => {
-    setEditingTaskId(task.id);
-    setEditTitle(task.title);
-    setEditNotes(task.notes ?? "");
+  const { openAdd, openEdit } = useTaskModal();
+
+  const openAddModal = () => {
+    openAdd(taskList.id);
   };
 
-  const submitNewTask = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const title = newTitle.trim();
-
-    if (!title) return;
-
-    setSavingNew(true);
-    try {
-      await onAddTask({
-        taskListId: taskList.id,
-        title,
-        notes: newNotes.trim() || undefined,
-      });
-      setNewTitle("");
-      setNewNotes("");
-    } finally {
-      setSavingNew(false);
-    }
-  };
-
-  const submitEditTask = async (taskId: string) => {
-    const title = editTitle.trim();
-
-    if (!title) return;
-
-    setBusyTaskId(taskId);
-    try {
-      await onUpdateTask({
-        taskListId: taskList.id,
-        taskId,
-        title,
-        notes: editNotes.trim() || undefined,
-      });
-      setEditingTaskId(null);
-      setEditTitle("");
-      setEditNotes("");
-    } finally {
-      setBusyTaskId(null);
-    }
+  const openEditModal = (task: GoogleTask) => {
+    openEdit(
+      taskList.id,
+      task.id,
+      task.title,
+      task.notes ?? "",
+      task.due ?? undefined,
+    );
   };
 
   const toggleTask = async (task: GoogleTask) => {
@@ -126,12 +98,37 @@ const TaskListCard: FC<{
 
   return (
     <article className="px-5 top-14 w-full max-w-[95%]">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-white">{taskList.title}</h2>
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-            {tasks.length} tasks
-          </p>
+      <div className="flex items-center justify-between border-b border-white/10 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <TaskListSelector
+              taskLists={taskLists}
+              value={selectedTaskList?.id ?? ""}
+              onValueChange={(taskListId) => {
+                setSelectedTaskListId(taskListId);
+                try {
+                  localStorage.setItem("gtask_selected_task_list", taskListId);
+                } catch {
+                  // ignore storage failures
+                }
+              }}
+            />
+            {/* <h2 className="text-lg font-semibold text-white">
+              {taskList.title}
+            </h2> */}
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-400 mt-1">
+              {tasks.length} tasks
+            </p>
+          </div>
+        </div>
+        <div className="">
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="rounded-full border border-white/20 bg-green-500/5 text-white cursor-pointer *:hover:bg-green-500"
+          >
+            <PlusCircle className="rounded-full w-8 h-8 p-2" />
+          </button>
         </div>
       </div>
 
@@ -164,7 +161,7 @@ const TaskListCard: FC<{
         <ul className="space-y-3">
           {tasks.map((task) => {
             const completed = taskIsCompleted(task);
-            const isEditing = editingTaskId === task.id;
+            // const isEditing = editingTaskId === task.id;
             const isBusy = busyTaskId === task.id;
             const due = formatDueDate(task.due);
 
@@ -195,21 +192,19 @@ const TaskListCard: FC<{
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() =>
-                            isEditing ? setEditingTaskId(null) : startEdit(task)
-                          }
+                          onClick={() => openEditModal(task)}
                           disabled={loading || isBusy}
-                          className="rounded-full border border-white/10 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:bg-white/10 disabled:opacity-50"
+                          className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-500/10"
                         >
-                          {isEditing ? "Close" : "Edit"}
+                          <Edit className="rounded-full w-8 h-8 p-2" />
                         </button>
                         <button
                           type="button"
                           onClick={() => void deleteTask(task.id)}
                           disabled={loading || isBusy}
-                          //   className="rounded-full border border-red-500/20 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="rounded-full border border-white/20 bg-red-500/5 text-white cursor-pointer *:hover:bg-red-900/10"
                         >
-                          Delete
+                          <Trash className="rounded-full w-8 h-8 p-2" />
                         </button>
                       </div>
                     </div>
@@ -226,40 +221,7 @@ const TaskListCard: FC<{
                       </p>
                     ) : null}
 
-                    {isEditing ? (
-                      <div className="mt-3 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3">
-                        <input
-                          value={editTitle}
-                          onChange={(event) => setEditTitle(event.target.value)}
-                          className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400/60"
-                          placeholder="Task title"
-                        />
-                        <textarea
-                          value={editNotes}
-                          onChange={(event) => setEditNotes(event.target.value)}
-                          className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400/60"
-                          placeholder="Task notes"
-                          rows={2}
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void submitEditTask(task.id)}
-                            disabled={loading || isBusy || !editTitle.trim()}
-                            className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-50"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingTaskId(null)}
-                            className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
+                    {null}
                   </div>
                 </label>
               </li>
@@ -267,6 +229,8 @@ const TaskListCard: FC<{
           })}
         </ul>
       )}
+
+      {/* Modal handled by TaskModalProvider */}
     </article>
   );
 };

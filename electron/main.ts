@@ -164,6 +164,54 @@ async function createWindow() {
   );
   ipcMain.handle("window-controls:close", () => windowControls.close());
 
+  ipcMain.handle(
+    "open-task-window",
+    (_event, opts: { mode: string; taskListId?: string; taskId?: string }) => {
+      const modal = new BrowserWindow({
+        parent: win ?? undefined,
+        modal: true,
+        width: 480,
+        height: 420,
+        useContentSize: true,
+        show: false,
+        resizable: false,
+        frame: false,
+        webPreferences: {
+          preload: path.join(__dirname, "preload.mjs"),
+        },
+      });
+
+      const qs = new URLSearchParams();
+      qs.set("taskModal", "1");
+      qs.set("mode", opts.mode ?? "add");
+      if (opts.taskListId) qs.set("taskListId", opts.taskListId);
+      if (opts.taskId) qs.set("taskId", opts.taskId);
+
+      const urlWithQuery = VITE_DEV_SERVER_URL
+        ? `${VITE_DEV_SERVER_URL}?${qs.toString()}`
+        : `file://${path.join(RENDERER_DIST, "index.html")}?${qs.toString()}`;
+
+      modal.loadURL(urlWithQuery);
+
+      // Show window only when content is ready to avoid flicker/resizing.
+      const tryShow = () => {
+        if (modal && !modal.isDestroyed()) {
+          modal.show();
+          modal.focus();
+        }
+      };
+
+      // Prefer ready-to-show, fallback to did-finish-load.
+      modal.once("ready-to-show", tryShow);
+      modal.webContents.once("did-finish-load", () => {
+        // In some dev setups ready-to-show may not fire — ensure we show then.
+        if (!modal.isVisible()) tryShow();
+      });
+
+      return true;
+    },
+  );
+
   setWindowPinned(false);
 
   // Test active push message to Renderer-process.
