@@ -1,10 +1,10 @@
 {
-  "name": "gtask_widget",
+  "name": "google-task-widget",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node api.js && vite",
     "build": "tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
@@ -14,7 +14,9 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@radix-ui/react-select": "^2.2.6",
+    "dotenv": "^8.2.0",
     "lucide-react": "^1.16.0",
+    "node-fetch": "^3.3.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
