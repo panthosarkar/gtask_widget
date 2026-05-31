@@ -1,121 +1,179 @@
-import { app as c, BrowserWindow as h, ipcMain as i } from "electron";
-import { promises as u } from "node:fs";
-import { fileURLToPath as b } from "node:url";
+import { app as w, BrowserWindow as v, ipcMain as s } from "electron";
+import { promises as h } from "node:fs";
+import { createServer as j } from "node:http";
+import { fileURLToPath as P } from "node:url";
 import o from "node:path";
-const f = o.dirname(b(import.meta.url));
-process.env.APP_ROOT = o.join(f, "..");
-const m = process.env.VITE_DEV_SERVER_URL, M = o.join(process.env.APP_ROOT, "dist-electron"), g = o.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = m ? o.join(process.env.APP_ROOT, "public") : g;
-let e;
-const w = {
+const x = o.dirname(P(import.meta.url));
+process.env.APP_ROOT = o.join(x, "..");
+const m = process.env.VITE_DEV_SERVER_URL, S = o.join(process.env.APP_ROOT, "dist-electron"), u = o.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = m ? o.join(process.env.APP_ROOT, "public") : u;
+let e, l = null;
+const y = "http://127.0.0.1:4173", g = {
   width: 420,
   height: 680
 };
-function z() {
-  return o.join(c.getPath("userData"), "window-state.json");
+function R() {
+  return o.join(w.getPath("userData"), "window-state.json");
 }
-async function x() {
+async function _() {
   try {
-    const d = await u.readFile(z(), "utf-8"), n = JSON.parse(d);
+    const a = await h.readFile(R(), "utf-8"), t = JSON.parse(a);
     return {
-      width: Number.isFinite(n.width) ? Math.max(320, Math.round(n.width)) : w.width,
-      height: Number.isFinite(n.height) ? Math.max(240, Math.round(n.height)) : w.height
+      width: Number.isFinite(t.width) ? Math.max(320, Math.round(t.width)) : g.width,
+      height: Number.isFinite(t.height) ? Math.max(240, Math.round(t.height)) : g.height
     };
   } catch {
-    return w;
+    return g;
   }
 }
-async function v() {
+async function z() {
   if (!e || e.isDestroyed())
     return;
-  const { width: d, height: n } = e.getBounds(), s = z();
-  await u.mkdir(o.dirname(s), { recursive: !0 }), await u.writeFile(
-    s,
-    JSON.stringify({ width: d, height: n }, null, 2),
+  const { width: a, height: t } = e.getBounds(), i = R();
+  await h.mkdir(o.dirname(i), { recursive: !0 }), await h.writeFile(
+    i,
+    JSON.stringify({ width: a, height: t }, null, 2),
     "utf-8"
   );
 }
-async function _() {
-  const d = await x();
-  e = new h({
-    width: d.width,
-    height: d.height,
+function b(a) {
+  switch (o.extname(a).toLowerCase()) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "application/javascript; charset=utf-8";
+    case ".mjs":
+      return "application/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".ico":
+      return "image/x-icon";
+    default:
+      return "application/octet-stream";
+  }
+}
+async function I() {
+  m || l || (l = j(
+    async (a, t) => {
+      try {
+        const i = new URL(a.url ?? "/", y), n = decodeURIComponent(i.pathname), d = n === "/" ? "index.html" : n.slice(1), r = o.join(u, d);
+        let c = r;
+        try {
+          (await h.stat(r)).isDirectory() && (c = o.join(r, "index.html"));
+        } catch {
+          c = o.join(u, "index.html");
+        }
+        const p = await h.readFile(c);
+        t.statusCode = 200, t.setHeader("Content-Type", b(c)), t.end(p);
+      } catch {
+        try {
+          const i = await h.readFile(
+            o.join(u, "index.html")
+          );
+          t.statusCode = 200, t.setHeader("Content-Type", "text/html; charset=utf-8"), t.end(i);
+        } catch {
+          t.statusCode = 500, t.end("Unable to load app");
+        }
+      }
+    }
+  ), await new Promise((a, t) => {
+    l == null || l.once("error", t), l == null || l.listen(4173, "127.0.0.1", () => a());
+  }));
+}
+async function T() {
+  const a = await _();
+  w.setName("Google Task Widget"), e = new v({
+    width: a.width,
+    height: a.height,
+    title: "Google Task Widget",
     minWidth: 320,
     minHeight: 240,
     frame: !1,
     icon: o.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: o.join(f, "preload.mjs")
+      preload: o.join(x, "preload.mjs")
     }
   });
-  const n = (t) => {
-    !e || e.isDestroyed() || (e.setMovable(!t), e.setResizable(!t), e.setMinimizable(!t), e.setMaximizable(!t));
-  }, s = {
+  const t = (n) => {
+    !e || e.isDestroyed() || (e.setMovable(!n), e.setResizable(!n), e.setMinimizable(!n), e.setMaximizable(!n));
+  }, i = {
     getState: () => ({
       pinned: !(e != null && e.isMovable()),
       alwaysOnTop: !!(e != null && e.isAlwaysOnTop()),
       maximized: !!(e != null && e.isMaximized())
     }),
-    setPinned: (t) => (n(t), { pinned: t }),
-    setAlwaysOnTop: (t) => (e == null || e.setAlwaysOnTop(t), { alwaysOnTop: t }),
+    setPinned: (n) => (t(n), { pinned: n }),
+    setAlwaysOnTop: (n) => (e == null || e.setAlwaysOnTop(n), { alwaysOnTop: n }),
     minimize: () => e != null && e.isMinimizable() ? (e.minimize(), { minimized: !0 }) : { minimized: !1 },
     toggleMaximize: () => e != null && e.isMaximizable() ? e.isMaximized() ? (e.unmaximize(), { maximized: !1 }) : (e.maximize(), { maximized: !0 }) : { maximized: !1 },
     close: () => (e == null || e.close(), { closed: !0 })
   };
-  i.removeHandler("window-controls:get-state"), i.removeHandler("window-controls:set-pinned"), i.removeHandler("window-controls:set-always-on-top"), i.removeHandler("window-controls:minimize"), i.removeHandler("window-controls:toggle-maximize"), i.removeHandler("window-controls:close"), i.handle("window-controls:get-state", () => s.getState()), i.handle(
+  s.removeHandler("window-controls:get-state"), s.removeHandler("window-controls:set-pinned"), s.removeHandler("window-controls:set-always-on-top"), s.removeHandler("window-controls:minimize"), s.removeHandler("window-controls:toggle-maximize"), s.removeHandler("window-controls:close"), s.handle("window-controls:get-state", () => i.getState()), s.handle(
     "window-controls:set-pinned",
-    (t, a) => s.setPinned(a)
-  ), i.handle(
+    (n, d) => i.setPinned(d)
+  ), s.handle(
     "window-controls:set-always-on-top",
-    (t, a) => s.setAlwaysOnTop(a)
-  ), i.handle("window-controls:minimize", () => s.minimize()), i.handle(
+    (n, d) => i.setAlwaysOnTop(d)
+  ), s.handle("window-controls:minimize", () => i.minimize()), s.handle(
     "window-controls:toggle-maximize",
-    () => s.toggleMaximize()
-  ), i.handle("window-controls:close", () => s.close()), i.handle(
+    () => i.toggleMaximize()
+  ), s.handle("window-controls:close", () => i.close()), s.handle(
     "open-task-window",
-    (t, a) => {
-      const r = new h({
+    (n, d) => {
+      const r = new v({
         parent: e ?? void 0,
         modal: !0,
         width: 480,
         height: 420,
+        title: "Google Task Widget",
         useContentSize: !0,
         show: !1,
         resizable: !1,
         frame: !1,
         webPreferences: {
-          preload: o.join(f, "preload.mjs")
+          preload: o.join(x, "preload.mjs")
         }
-      }), l = new URLSearchParams();
-      l.set("taskModal", "1"), l.set("mode", a.mode ?? "add"), a.taskListId && l.set("taskListId", a.taskListId), a.taskId && l.set("taskId", a.taskId);
-      const S = m ? `${m}?${l.toString()}` : `file://${o.join(g, "index.html")}?${l.toString()}`;
-      r.loadURL(S);
-      const p = () => {
+      }), c = new URLSearchParams();
+      c.set("taskModal", "1"), c.set("mode", d.mode ?? "add"), d.taskListId && c.set("taskListId", d.taskListId), d.taskId && c.set("taskId", d.taskId);
+      const p = m ? `${m}?${c.toString()}` : `${y}?${c.toString()}`;
+      r.loadURL(p);
+      const f = () => {
         r && !r.isDestroyed() && (r.show(), r.focus());
       };
-      return r.once("ready-to-show", p), r.webContents.once("did-finish-load", () => {
-        r.isVisible() || p();
+      return r.once("ready-to-show", f), r.webContents.once("did-finish-load", () => {
+        r.isVisible() || f();
       }), !0;
     }
-  ), n(!1), e.webContents.on("did-finish-load", () => {
+  ), t(!1), e.webContents.on("did-finish-load", () => {
     e == null || e.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   }), e.on("resize", () => {
-    v();
+    z();
   }), e.on("close", () => {
-    v();
+    z();
   }), m ? (e.loadURL(m), e.webContents.once("did-finish-load", () => {
     e == null || e.webContents.openDevTools({ mode: "detach" });
-  })) : e.loadFile(o.join(g, "index.html"));
+  })) : e.loadURL(y);
 }
-c.on("window-all-closed", () => {
-  process.platform !== "darwin" && (c.quit(), e = null);
+w.on("window-all-closed", () => {
+  process.platform !== "darwin" && (l == null || l.close(), l = null, w.quit(), e = null);
 });
-c.on("activate", () => {
-  h.getAllWindows().length === 0 && _();
+w.on("activate", () => {
+  v.getAllWindows().length === 0 && T();
 });
-c.whenReady().then(_);
+w.whenReady().then(async () => {
+  await I(), await T();
+});
 export {
-  M as MAIN_DIST,
-  g as RENDERER_DIST,
+  S as MAIN_DIST,
+  u as RENDERER_DIST,
   m as VITE_DEV_SERVER_URL
 };

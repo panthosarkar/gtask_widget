@@ -13,7 +13,6 @@ dist-ssr
 *.local
 credentials.json
 # Editor directories and files
-.vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
@@ -30,5 +29,4 @@ build
 electron-dist
 .vite
 
-.env
-.env.*
+config.bat

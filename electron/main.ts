@@ -1,5 +1,10 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { promises as fs } from "node:fs";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -26,6 +31,9 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+let rendererServer: ReturnType<typeof createServer> | null = null;
+
+const LOCAL_RENDERER_ORIGIN = "http://127.0.0.1:4173";
 
 type WindowState = {
   width: number;
@@ -75,12 +83,94 @@ async function saveWindowState() {
   );
 }
 
+function getContentType(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase();
+
+  switch (extension) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "application/javascript; charset=utf-8";
+    case ".mjs":
+      return "application/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".ico":
+      return "image/x-icon";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function startLocalRendererServer() {
+  if (VITE_DEV_SERVER_URL || rendererServer) {
+    return;
+  }
+
+  rendererServer = createServer(
+    async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const requestUrl = new URL(req.url ?? "/", LOCAL_RENDERER_ORIGIN);
+        const requestPath = decodeURIComponent(requestUrl.pathname);
+
+        const relativePath =
+          requestPath === "/" ? "index.html" : requestPath.slice(1);
+        const filePath = path.join(RENDERER_DIST, relativePath);
+
+        let targetPath = filePath;
+        try {
+          const stat = await fs.stat(filePath);
+          if (stat.isDirectory()) {
+            targetPath = path.join(filePath, "index.html");
+          }
+        } catch {
+          targetPath = path.join(RENDERER_DIST, "index.html");
+        }
+
+        const content = await fs.readFile(targetPath);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", getContentType(targetPath));
+        res.end(content);
+      } catch {
+        try {
+          const content = await fs.readFile(
+            path.join(RENDERER_DIST, "index.html"),
+          );
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.end(content);
+        } catch {
+          res.statusCode = 500;
+          res.end("Unable to load app");
+        }
+      }
+    },
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    rendererServer?.once("error", reject);
+    rendererServer?.listen(4173, "127.0.0.1", () => resolve());
+  });
+}
+
 async function createWindow() {
   const windowState = await loadWindowState();
+
+  app.setName("Google Task Widget");
 
   win = new BrowserWindow({
     width: windowState.width,
     height: windowState.height,
+    title: "Google Task Widget",
     minWidth: 320,
     minHeight: 240,
     frame: false,
@@ -172,6 +262,7 @@ async function createWindow() {
         modal: true,
         width: 480,
         height: 420,
+        title: "Google Task Widget",
         useContentSize: true,
         show: false,
         resizable: false,
@@ -189,7 +280,7 @@ async function createWindow() {
 
       const urlWithQuery = VITE_DEV_SERVER_URL
         ? `${VITE_DEV_SERVER_URL}?${qs.toString()}`
-        : `file://${path.join(RENDERER_DIST, "index.html")}?${qs.toString()}`;
+        : `${LOCAL_RENDERER_ORIGIN}?${qs.toString()}`;
 
       modal.loadURL(urlWithQuery);
 
@@ -232,8 +323,7 @@ async function createWindow() {
       win?.webContents.openDevTools({ mode: "detach" });
     });
   } else {
-    // win.loadFile('dist/index.html')
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+    win.loadURL(LOCAL_RENDERER_ORIGIN);
   }
 }
 
@@ -242,6 +332,8 @@ async function createWindow() {
 // explicitly with Cmd + Q.
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
+    rendererServer?.close();
+    rendererServer = null;
     app.quit();
     win = null;
   }
@@ -255,4 +347,7 @@ app.on("activate", () => {
   }
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await startLocalRendererServer();
+  await createWindow();
+});
